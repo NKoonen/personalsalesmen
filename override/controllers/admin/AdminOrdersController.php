@@ -19,13 +19,18 @@
  * needs please refer to http://www.prestashop.com for more information.
  *
  * @author    PrestaShop SA <contact@prestashop.com>
- * @copyright 2007-2018 PrestaShop SA
+ * @copyright 2007-2019 PrestaShop SA
  * @license   https://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
  * International Registered Trademark & Property of PrestaShop SA
  */
 
 class AdminOrdersController extends AdminOrdersControllerCore
 {
+    /*
+    * module: personalsalesmen
+    * date: 2019-09-13 12:41:29
+    * version: 3.0.4
+    */
     public function __construct()
     {
         $this->bootstrap = true;
@@ -36,9 +41,7 @@ class AdminOrdersController extends AdminOrdersControllerCore
         $this->explicitSelect = true;
         $this->allow_export = true;
         $this->deleted = false;
-
         parent::__construct();
-
         $this->_select = '
         a.id_currency,
         a.id_order AS id_pdf,
@@ -50,24 +53,41 @@ class AdminOrdersController extends AdminOrdersControllerCore
         IF(a.valid, 1, 0) badge_success';
         if($this->context->employee->id_profile != 1 && Configuration::get('ma_generalCEOptions') != 1)
         {
-            $this->_where .= ' AND a.`id_customer` in (SELECT id_customer FROM `'._DB_PREFIX_.'personalsalesmen` WHERE id_employee = '.(int)$this->context->employee->id.' ) OR a.`id_customer` in (SELECT id_customer FROM `'._DB_PREFIX_.'customer` WHERE id_default_group in (SELECT id_group FROM `'._DB_PREFIX_.'personalsalesmen_Groups` WHERE id_employee = '.(int)$this->context->employee->id.' ) )';
+            
+            $this->_join = '
+                INNER JOIN `'._DB_PREFIX_.'address` address ON address.id_address = a.id_address_delivery
+                INNER JOIN `'._DB_PREFIX_.'country` country ON address.id_country = country.id_country
+                INNER JOIN `'._DB_PREFIX_.'country_lang` country_lang ON (country.`id_country` = country_lang.`id_country` AND country_lang.`id_lang` = '.(int)$this->context->language->id.')
+                LEFT JOIN `'._DB_PREFIX_.'order_state` os ON (os.`id_order_state` = a.`current_state`)
+                LEFT JOIN `'._DB_PREFIX_.'order_state_lang` osl ON (os.`id_order_state` = osl.`id_order_state` AND osl.`id_lang` = '.(int)$this->context->language->id.')
+                LEFT JOIN `' . _DB_PREFIX_ . 'personalsalesmen` psm ON a.id_customer = psm.id_customer
+                LEFT JOIN `' . _DB_PREFIX_ . 'customer` c ON a.id_customer = c.id_customer
+            ';
+            $subQuery = new DbQuery();
+            $subQuery
+                ->select('pcg.`id_customer`');
+            $subQuery->from('customer_group', 'pcg');
+            $subQuery->innerJoin('personalsalesmen_Groups', 'psmg', 'psmg.`id_group` = pcg.`id_group`');
+            $subQuery->where('psmg.`id_employee` = '.(int)$this->context->employee->id);
+            $this->_where = 'AND (psm.`id_employee`  = '.(int)$this->context->employee->id.' OR c.`id_customer` IN ('.$subQuery.'))';
+        }else{
+
+            $this->_join = '
+            LEFT JOIN `'._DB_PREFIX_.'customer` c ON (c.`id_customer` = a.`id_customer`)
+            INNER JOIN `'._DB_PREFIX_.'address` address ON address.id_address = a.id_address_delivery
+            INNER JOIN `'._DB_PREFIX_.'country` country ON address.id_country = country.id_country
+            INNER JOIN `'._DB_PREFIX_.'country_lang` country_lang ON (country.`id_country` = country_lang.`id_country` AND country_lang.`id_lang` = '.(int)$this->context->language->id.')
+            LEFT JOIN `'._DB_PREFIX_.'order_state` os ON (os.`id_order_state` = a.`current_state`)
+            LEFT JOIN `'._DB_PREFIX_.'order_state_lang` osl ON (os.`id_order_state` = osl.`id_order_state` AND osl.`id_lang` = '.(int)$this->context->language->id.')';
         }
-        $this->_join = '
-        LEFT JOIN `'._DB_PREFIX_.'customer` c ON (c.`id_customer` = a.`id_customer`)
-        INNER JOIN `'._DB_PREFIX_.'address` address ON address.id_address = a.id_address_delivery
-        INNER JOIN `'._DB_PREFIX_.'country` country ON address.id_country = country.id_country
-        INNER JOIN `'._DB_PREFIX_.'country_lang` country_lang ON (country.`id_country` = country_lang.`id_country` AND country_lang.`id_lang` = '.(int)$this->context->language->id.')
-        LEFT JOIN `'._DB_PREFIX_.'order_state` os ON (os.`id_order_state` = a.`current_state`)
-        LEFT JOIN `'._DB_PREFIX_.'order_state_lang` osl ON (os.`id_order_state` = osl.`id_order_state` AND osl.`id_lang` = '.(int)$this->context->language->id.')';
+
         $this->_orderBy = 'id_order';
         $this->_orderWay = 'DESC';
         $this->_use_found_rows = true;
-
         $statuses = OrderState::getOrderStates((int)$this->context->language->id);
         foreach ($statuses as $status) {
             $this->statuses_array[$status['id_order_state']] = $status['name'];
         }
-
         $this->fields_list = array(
             'id_order' => array(
                 'title' => $this->trans('ID', array(), 'Admin.Global'),
@@ -89,7 +109,6 @@ class AdminOrdersController extends AdminOrdersControllerCore
                 'havingFilter' => true,
             ),
         );
-
         if (Configuration::get('PS_B2B_ENABLE')) {
             $this->fields_list = array_merge($this->fields_list, array(
                 'company' => array(
@@ -98,7 +117,6 @@ class AdminOrdersController extends AdminOrdersControllerCore
                 ),
             ));
         }
-
         $this->fields_list = array_merge($this->fields_list, array(
             'total_paid_tax_incl' => array(
                 'title' => $this->trans('Total', array(), 'Admin.Global'),
@@ -135,7 +153,6 @@ class AdminOrdersController extends AdminOrdersControllerCore
                 'remove_onclick' => true
             )
         ));
-
         if (Country::isCurrentlyUsed('country', true)) {
             $result = Db::getInstance(_PS_USE_SQL_SLAVE_)->ExecuteS('
             SELECT DISTINCT c.id_country, cl.`name`
@@ -145,12 +162,10 @@ class AdminOrdersController extends AdminOrdersControllerCore
             INNER JOIN `'._DB_PREFIX_.'country` c ON a.id_country = c.id_country
             INNER JOIN `'._DB_PREFIX_.'country_lang` cl ON (c.`id_country` = cl.`id_country` AND cl.`id_lang` = '.(int)$this->context->language->id.')
             ORDER BY cl.name ASC');
-
             $country_array = array();
             foreach ($result as $row) {
                 $country_array[$row['id_country']] = $row['name'];
             }
-
             $part1 = array_slice($this->fields_list, 0, 3);
             $part2 = array_slice($this->fields_list, 3);
             $part1['cname'] = array(
@@ -163,37 +178,34 @@ class AdminOrdersController extends AdminOrdersControllerCore
             );
             $this->fields_list = array_merge($part1, $part2);
         }
-
         $this->shopLinkType = 'shop';
         $this->shopShareDatas = Shop::SHARE_ORDER;
-
         if (Tools::isSubmit('id_order')) {
-            // Save context (in order to apply cart rule)
             $order = new Order((int)Tools::getValue('id_order'));
             $this->context->cart = new Cart($order->id_cart);
             $this->context->customer = new Customer($order->id_customer);
         }
-
         $this->bulk_actions = array(
             'updateOrderStatus' => array('text' => $this->trans('Change Order Status', array(), 'Admin.Orderscustomers.Feature'), 'icon' => 'icon-refresh')
         );
         
     }
-
+    /*
+    * module: personalsalesmen
+    * date: 2019-09-13 12:41:29
+    * version: 3.0.4
+    */
     public function renderView()
     {
         $order = new Order(Tools::getValue('id_order'));
         if (!Validate::isLoadedObject($order)) {
             $this->errors[] = $this->trans('The order cannot be found within your database.', array(), 'Admin.Orderscustomers.Notification');
         }
-
         
-
         $customer = new Customer($order->id_customer);
         $carrier = new Carrier($order->id_carrier);
         $products = $this->getProducts($order);
         $currency = new Currency((int)$order->id_currency);
-        // Carrier module call
         $carrier_module_call = null;
         if ($carrier->is_module) {
             $module = Module::getInstanceByName($carrier->external_module_name);
@@ -201,20 +213,26 @@ class AdminOrdersController extends AdminOrdersControllerCore
                 $carrier_module_call = call_user_func(array($module, 'displayInfoByCart'), $order->id_cart);
             }
         }
-
-        // Retrieve addresses information
         $addressInvoice = new Address($order->id_address_invoice, $this->context->language->id);
 
-        $normallink = Db::getInstance()->ExecuteS('SELECT id_customer FROM `'._DB_PREFIX_.'personalsalesmen` WHERE id_employee = '.(int)$this->context->employee->id.' AND id_customer ='.(int)$order->id_customer.' ');        
+        $normallink = Db::getInstance()->ExecuteS('SELECT id_customer FROM `'._DB_PREFIX_.'personalsalesmen` WHERE id_employee = '.(int)$this->context->employee->id.' AND id_customer ='.(int)$order->id_customer.' ');
 
-        $grouplink = Db::getInstance()->ExecuteS('SELECT id_group FROM `'._DB_PREFIX_.'personalsalesmen_Groups` WHERE id_group =  '.(int)$customer->id_default_group.' AND id_employee = '.(int)$this->context->employee->id.'');
+        $subQuery = new DbQuery();
+        $subQuery
+            ->select('pcg.`id_customer`');
+        $subQuery->from('customer_group', 'pcg');
+        $subQuery->innerJoin('personalsalesmen_Groups', 'psmg', 'psmg.`id_group` = pcg.`id_group`');
+        $subQuery->where('psmg.`id_employee` = '.(int)$this->context->employee->id.' AND ('.(int)$order->id_customer.' IN ('.$subQuery.'))');
+        $grouplink = Db::getInstance()->executeS($subQuery);
 
+        var_dump($grouplink);
         if($this->context->employee->id_profile != 1 && Configuration::get('ma_generalCEOptions') != 1)
         {
-            if($normallink[0]['id_customer'] > 0){
-            }elseif($grouplink[0]['id_group'] > 0){
+            if(isset($normallink[0])){
+            }elseif($grouplink[0]['id_customer'] > 0){
             }else{
-                $this->errors[] = Tools::displayError('Permission denied by Personal Salesmen');
+               Context::getContext()->controller->errors[] = 'Access denied!';
+
                 return;
             }
         }
@@ -222,7 +240,6 @@ class AdminOrdersController extends AdminOrdersControllerCore
         if (Validate::isLoadedObject($addressInvoice) && $addressInvoice->id_state) {
             $invoiceState = new State((int)$addressInvoice->id_state);
         }
-
         if ($order->id_address_invoice == $order->id_address_delivery) {
             $addressDelivery = $addressInvoice;
             if (isset($invoiceState)) {
@@ -234,7 +251,6 @@ class AdminOrdersController extends AdminOrdersControllerCore
                 $deliveryState = new State((int)($addressDelivery->id_state));
             }
         }
-
         $this->toolbar_title = $this->trans(
             'Order #%id% (%ref%) - %firstname% %lastname%',
             array(
@@ -249,14 +265,10 @@ class AdminOrdersController extends AdminOrdersControllerCore
             $shop = new Shop((int)$order->id_shop);
             $this->toolbar_title .= ' - '.$this->trans('Shop: %shop_name%', array('%shop_name%' => $shop->name), 'Admin.Orderscustomers.Feature');
         }
-
-        // gets warehouses to ship products, if and only if advanced stock management is activated
         $warehouse_list = null;
-
         $order_details = $order->getOrderDetailList();
         foreach ($order_details as $order_detail) {
             $product = new Product($order_detail['product_id']);
-
             if (Configuration::get('PS_ADVANCED_STOCK_MANAGEMENT')
                 && $product->advanced_stock_management) {
                 $warehouses = Warehouse::getWarehousesByProductId($order_detail['product_id'], $order_detail['product_attribute_id']);
@@ -267,7 +279,6 @@ class AdminOrdersController extends AdminOrdersControllerCore
                 }
             }
         }
-
         $payment_methods = array();
         foreach (PaymentModule::getInstalledPaymentModules() as $payment) {
             $module = Module::getInstanceByName($payment['name']);
@@ -275,19 +286,13 @@ class AdminOrdersController extends AdminOrdersControllerCore
                 $payment_methods[] = $module->displayName;
             }
         }
-
-        // display warning if there are products out of stock
         $display_out_of_stock_warning = false;
         $current_order_state = $order->getCurrentOrderState();
         if (Configuration::get('PS_STOCK_MANAGEMENT') && (!Validate::isLoadedObject($current_order_state) || ($current_order_state->delivery != 1 && $current_order_state->shipped != 1))) {
             $display_out_of_stock_warning = true;
         }
-
-        // products current stock (from stock_available)
         foreach ($products as &$product) {
-            // Get total customized quantity for current product
             $customized_product_quantity = 0;
-
             if (is_array($product['customizedDatas'])) {
                 foreach ($product['customizedDatas'] as $customizationPerAddress) {
                     foreach ($customizationPerAddress as $customizationId => $customization) {
@@ -295,7 +300,6 @@ class AdminOrdersController extends AdminOrdersControllerCore
                     }
                 }
             }
-
             $product['customized_product_quantity'] = $customized_product_quantity;
             $product['current_stock'] = StockAvailable::getQuantityAvailableByProduct($product['product_id'], $product['product_attribute_id'], $product['id_shop']);
             $resume = OrderSlip::getProductSlipResume($product['id_order_detail']);
@@ -305,8 +309,6 @@ class AdminOrdersController extends AdminOrdersControllerCore
             $product['amount_refund'] = $order->getTaxCalculationMethod() ? Tools::displayPrice($resume['amount_tax_excl'], $currency) : Tools::displayPrice($resume['amount_tax_incl'], $currency);
             $product['refund_history'] = OrderSlip::getProductSlipDetail($product['id_order_detail']);
             $product['return_history'] = OrderReturn::getProductReturnDetail($product['id_order_detail']);
-
-            // if the current stock requires a warning
             if ($product['current_stock'] <= 0 && $display_out_of_stock_warning) {
                 $this->displayWarning($this->trans('This product is out of stock: ', array(), 'Admin.Orderscustomers.Notification').' '.$product['product_name']);
             }
@@ -324,20 +326,16 @@ class AdminOrdersController extends AdminOrdersControllerCore
                 $product['warehouse_location'] = false;
             }
         }
-
-        // Package management for order
         foreach ($products as &$product) {
             $pack_items = $product['cache_is_pack'] ? Pack::getItemTable($product['id_product'], $this->context->language->id, true) : array();
             foreach ($pack_items as &$pack_item) {
                 $pack_item['current_stock'] = StockAvailable::getQuantityAvailableByProduct($pack_item['id_product'], $pack_item['id_product_attribute'], $pack_item['id_shop']);
-                // if the current stock requires a warning
                 if ($product['current_stock'] <= 0 && $display_out_of_stock_warning) {
                     $this->displayWarning($this->trans('This product, included in package ('.$product['product_name'].') is out of stock: ', array(), 'Admin.Orderscustomers.Notification').' '.$pack_item['product_name']);
                 }
                 $this->setProductImageInformations($pack_item);
                 if ($pack_item['image'] != null) {
                     $name = 'product_mini_'.(int)$pack_item['id_product'].(isset($pack_item['id_product_attribute']) ? '_'.(int)$pack_item['id_product_attribute'] : '').'.jpg';
-                    // generate image cache, only for back office
                     $pack_item['image_tag'] = ImageManager::thumbnail(_PS_IMG_DIR_.'p/'.$pack_item['image']->getExistingImgPath().'.jpg', $name, 45, 'jpg');
                     if (file_exists(_PS_TMP_IMG_DIR_.$name)) {
                         $pack_item['image_size'] = getimagesize(_PS_TMP_IMG_DIR_.$name);
@@ -348,15 +346,11 @@ class AdminOrdersController extends AdminOrdersControllerCore
             }
             $product['pack_items'] = $pack_items;
         }
-
         $gender = new Gender((int)$customer->id_gender, $this->context->language->id);
-
         $history = $order->getHistory($this->context->language->id);
-
         foreach ($history as &$order_state) {
             $order_state['text-color'] = Tools::getBrightness($order_state['color']) < 128 ? 'white' : 'black';
         }
-
         $shipping_refundable_tax_excl = $order->total_shipping_tax_excl;
         $shipping_refundable_tax_incl = $order->total_shipping_tax_incl;
         $slips = OrderSlip::getOrdersSlip($customer->id, $order->id);
@@ -366,8 +360,6 @@ class AdminOrdersController extends AdminOrdersControllerCore
         }
         $shipping_refundable_tax_excl = max(0, $shipping_refundable_tax_excl);
         $shipping_refundable_tax_incl = max(0, $shipping_refundable_tax_incl);
-
-        // Smarty assign
         $this->tpl_view_vars = array(
             'order' => $order,
             'cart' => new Cart($order->id_cart),
@@ -435,7 +427,6 @@ class AdminOrdersController extends AdminOrdersControllerCore
                 'customer' => $customer)
             ),
         );
-
         return parent::renderView();
     }
 }

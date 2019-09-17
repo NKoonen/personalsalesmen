@@ -29,6 +29,8 @@ if (!defined('_PS_VERSION_')) {
 }
 
 include_once(dirname(__FILE__).'/PersonalSalesMenExtra.php');
+use Doctrine\DBAL\Query\QueryBuilder;
+use PrestaShop\PrestaShop\Core\Search\Filters\CustomerFilters;
 
 class PersonalSalesMen extends Module
 {
@@ -42,7 +44,7 @@ class PersonalSalesMen extends Module
     {
         $this->name = 'personalsalesmen';
         $this->tab = 'administration';
-        $this->version = '3.0.5';
+        $this->version = '3.1.0';
         $this->author = 'Inform-all';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_); 
@@ -72,11 +74,11 @@ class PersonalSalesMen extends Module
     public function install($delete_params = true)
     {
         if (!parent::install() ||
+            !$this->registerHook('actionCustomerGridQueryBuilderModifier') ||
             !$this->registerHook('actionValidateOrder'))
             return false;
 
-        if ($delete_params)
-        {
+
         
             Configuration::updateValue('MA_MERCHANT_ORDER', 1);
             Configuration::updateValue('MA_MERCHANT_MAILS', Configuration::get('PS_SHOP_EMAIL'));
@@ -106,7 +108,7 @@ class PersonalSalesMen extends Module
             if (!Db::getInstance()->execute($sql2))
                 return false;
 
-        }
+    
         
         return true;
     }
@@ -230,6 +232,37 @@ class PersonalSalesMen extends Module
 
         return implode('<br/>', $result);
     }
+
+    /**
+     * @param array $params
+     */
+    public function hookActionCustomerGridQueryBuilderModifier(array $params)
+    {
+        if($this->context->employee->id_profile != 1 && Configuration::get('ma_generalCEOptions') != 1)
+        {
+            /** @var CustomerFilters $searchCriteria */
+            $searchCriteria = $params['search_criteria'];
+            
+            /** @var QueryBuilder $searchQueryBuilder */
+            $searchQueryBuilder = $params['search_query_builder'];
+            $searchQueryBuilder->leftJoin(
+               'c',
+               '`' . pSQL(_DB_PREFIX_) . 'personalsalesmen`',
+               'psm',
+               'psm.`id_customer` = c.`id_customer`'
+            );
+            $subQuery = new DbQuery();
+            $subQuery
+                ->select('pcg.`id_customer`');
+            $subQuery->from('customer_group', 'pcg');
+            $subQuery->innerJoin('personalsalesmen_Groups', 'psmg', 'psmg.`id_group` = pcg.`id_group`');
+            $subQuery->where('psmg.`id_employee` = '.(int)$this->context->employee->id);
+            $searchQueryBuilder->andWhere('(psm.`id_employee`  = '.(int)$this->context->employee->id.' OR c.`id_customer` IN ('.$subQuery.'))');
+        }
+
+    }
+
+
 
     public function hookActionValidateOrder($params)
     {
