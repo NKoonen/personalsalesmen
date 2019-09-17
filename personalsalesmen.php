@@ -42,10 +42,10 @@ class PersonalSalesMen extends Module
     {
         $this->name = 'personalsalesmen';
         $this->tab = 'administration';
-        $this->version = '1.6.4';
+        $this->version = '1.6.5';
         $this->author = 'Inform-all';
         $this->need_instance = 0;
-        $this->ps_versions_compliancy = array('min' => '1.6', 'max' => _PS_VERSION_); 
+        $this->ps_versions_compliancy = array('min' => '1.6', 'max' => '1.6'); 
         $this->bootstrap = true;
 
         parent::__construct();
@@ -622,7 +622,7 @@ class PersonalSalesMen extends Module
                         'options' => array(
                             'query' => Customer::getCustomers(true),
                             'id' => 'id_customer',
-                            'name' => 'lastname',
+                            'name' => 'email',
                             'default' => array(
                                 'value' => '',
                                 'label' => $this->l('Select Customer')
@@ -669,7 +669,7 @@ class PersonalSalesMen extends Module
             )
         );
 
-        $emplistquery = Db::getInstance()->ExecuteS('SELECT *,CONCAT(OG.lastname," - ",EG.lastname) as display FROM `'._DB_PREFIX_.'personalsalesmen` C INNER JOIN '._DB_PREFIX_.'employee OG 
+        $emplistquery = Db::getInstance()->ExecuteS('SELECT *,CONCAT(OG.lastname," - ",EG.email) as display FROM `'._DB_PREFIX_.'personalsalesmen` C INNER JOIN '._DB_PREFIX_.'employee OG 
             ON OG.id_employee = C.id_employee INNER JOIN '._DB_PREFIX_.'customer EG ON EG.id_customer = C.id_customer ORDER BY C.id_employee');
 
         $emplist = array(

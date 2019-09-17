@@ -50,15 +50,33 @@ class AdminOrdersController extends AdminOrdersControllerCore
         IF(a.valid, 1, 0) badge_success';
         if($this->context->employee->id_profile != 1 && Configuration::get('ma_generalCEOptions') != 1)
         {
-            $this->_where .= ' AND a.`id_customer` in (SELECT id_customer FROM `'._DB_PREFIX_.'personalsalesmen` WHERE id_employee = '.(int)$this->context->employee->id.' ) OR a.`id_customer` in (SELECT id_customer FROM `'._DB_PREFIX_.'customer` WHERE id_default_group in (SELECT id_group FROM `'._DB_PREFIX_.'personalsalesmen_Groups` WHERE id_employee = '.(int)$this->context->employee->id.' ) )';
+            
+            $this->_join = '
+                INNER JOIN `'._DB_PREFIX_.'address` address ON address.id_address = a.id_address_delivery
+                INNER JOIN `'._DB_PREFIX_.'country` country ON address.id_country = country.id_country
+                INNER JOIN `'._DB_PREFIX_.'country_lang` country_lang ON (country.`id_country` = country_lang.`id_country` AND country_lang.`id_lang` = '.(int)$this->context->language->id.')
+                LEFT JOIN `'._DB_PREFIX_.'order_state` os ON (os.`id_order_state` = a.`current_state`)
+                LEFT JOIN `'._DB_PREFIX_.'order_state_lang` osl ON (os.`id_order_state` = osl.`id_order_state` AND osl.`id_lang` = '.(int)$this->context->language->id.')
+                LEFT JOIN `' . _DB_PREFIX_ . 'personalsalesmen` psm ON a.id_customer = psm.id_customer
+                LEFT JOIN `' . _DB_PREFIX_ . 'customer` c ON a.id_customer = c.id_customer
+            ';
+            $subQuery = new DbQuery();
+            $subQuery
+                ->select('pcg.`id_customer`');
+            $subQuery->from('customer_group', 'pcg');
+            $subQuery->innerJoin('personalsalesmen_Groups', 'psmg', 'psmg.`id_group` = pcg.`id_group`');
+            $subQuery->where('psmg.`id_employee` = '.(int)$this->context->employee->id);
+            $this->_where = 'AND (psm.`id_employee`  = '.(int)$this->context->employee->id.' OR c.`id_customer` IN ('.$subQuery.'))';
+        }else{
+
+            $this->_join = '
+            LEFT JOIN `'._DB_PREFIX_.'customer` c ON (c.`id_customer` = a.`id_customer`)
+            INNER JOIN `'._DB_PREFIX_.'address` address ON address.id_address = a.id_address_delivery
+            INNER JOIN `'._DB_PREFIX_.'country` country ON address.id_country = country.id_country
+            INNER JOIN `'._DB_PREFIX_.'country_lang` country_lang ON (country.`id_country` = country_lang.`id_country` AND country_lang.`id_lang` = '.(int)$this->context->language->id.')
+            LEFT JOIN `'._DB_PREFIX_.'order_state` os ON (os.`id_order_state` = a.`current_state`)
+            LEFT JOIN `'._DB_PREFIX_.'order_state_lang` osl ON (os.`id_order_state` = osl.`id_order_state` AND osl.`id_lang` = '.(int)$this->context->language->id.')';
         }
-        $this->_join = '
-        LEFT JOIN `'._DB_PREFIX_.'customer` c ON (c.`id_customer` = a.`id_customer`)
-        INNER JOIN `'._DB_PREFIX_.'address` address ON address.id_address = a.id_address_delivery
-        INNER JOIN `'._DB_PREFIX_.'country` country ON address.id_country = country.id_country
-        INNER JOIN `'._DB_PREFIX_.'country_lang` country_lang ON (country.`id_country` = country_lang.`id_country` AND country_lang.`id_lang` = '.(int)$this->context->language->id.')
-        LEFT JOIN `'._DB_PREFIX_.'order_state` os ON (os.`id_order_state` = a.`current_state`)
-        LEFT JOIN `'._DB_PREFIX_.'order_state_lang` osl ON (os.`id_order_state` = osl.`id_order_state` AND osl.`id_lang` = '.(int)$this->context->language->id.')';
         $this->_orderBy = 'id_order';
         $this->_orderWay = 'DESC';
         $this->_use_found_rows = true;
