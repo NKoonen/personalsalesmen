@@ -225,7 +225,6 @@ class AdminOrdersController extends AdminOrdersControllerCore
         $subQuery->where('psmg.`id_employee` = '.(int)$this->context->employee->id.' AND ('.(int)$order->id_customer.' IN ('.$subQuery.'))');
         $grouplink = Db::getInstance()->executeS($subQuery);
 
-        var_dump($grouplink);
         if($this->context->employee->id_profile != 1 && Configuration::get('ma_generalCEOptions') != 1)
         {
             if(isset($normallink[0])){
