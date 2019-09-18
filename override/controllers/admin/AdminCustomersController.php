@@ -203,19 +203,19 @@ class AdminCustomersController extends AdminCustomersControllerCore
         $customers = array();
         $searches = array_unique($searches);
 
-        if((int)$context->employee->id != 1 && Configuration::get('ma_generalCEOptions') != 1){
+        if($this->context->employee->id_profile != 1 && Configuration::get('ma_generalCEOptions') != 1){
             //PERSONAL FILTER
-            $context = Context::getContext();
+            
 
             $subQuery = new DbQuery();
             $subQuery
                 ->select('pcg.`id_customer`');
             $subQuery->from('customer_group', 'pcg');
             $subQuery->innerJoin('personalsalesmen_Groups', 'psmg', 'psmg.`id_group` = pcg.`id_group`');
-            $subQuery->where('psmg.`id_employee` = '.(int)$context->employee->id);
+            $subQuery->where('psmg.`id_employee` = '.$this->context->employee->id_profile);
 
             $CustRay = array();
-            $sql = 'SELECT c.* FROM `' . _DB_PREFIX_ . 'customer` c LEFT JOIN `' . _DB_PREFIX_ . 'personalsalesmen` psm ON c.id_customer = psm.id_customer WHERE (psm.`id_employee`  = '.(int)$context->employee->id.' OR c.`id_customer` IN ('.$subQuery.'))';
+            $sql = 'SELECT c.* FROM `' . _DB_PREFIX_ . 'customer` c LEFT JOIN `' . _DB_PREFIX_ . 'personalsalesmen` psm ON c.id_customer = psm.id_customer WHERE (psm.`id_employee`  = '.$this->context->employee->id_profile.' OR c.`id_customer` IN ('.$subQuery.'))';
             if ($Listresults = Db::getInstance()->ExecuteS($sql))
             {
                 foreach ($Listresults as $row)
