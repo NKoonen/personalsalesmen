@@ -56,9 +56,6 @@ class PersonalSalesMen extends Module
         $this->description = $this->l('Link customers to employees. And have employees responsible for their orders.');
 
         $this->confirmUninstall = $this->l('Are you sure you want to uninstall, and remove all the current links?');
-        if (!Configuration::get('PERSONALSALES_NAME')) {
-            $this->warning = $this->l('No name provided.');
-        }
         $this->module_key = 'adc8f5cfac749f8b03c631861e9dc996';
 
     }
