@@ -44,7 +44,7 @@ class PersonalSalesMen extends Module
     {
         $this->name = 'personalsalesmen';
         $this->tab = 'administration';
-        $this->version = '3.1.0';
+        $this->version = '3.1.1';
         $this->author = 'Inform-all';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_); 
