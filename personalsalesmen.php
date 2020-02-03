@@ -44,7 +44,7 @@ class PersonalSalesMen extends Module
     {
         $this->name = 'personalsalesmen';
         $this->tab = 'administration';
-        $this->version = '3.1.1';
+        $this->version = '3.1.2';
         $this->author = 'Inform-all';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_); 
@@ -70,13 +70,6 @@ class PersonalSalesMen extends Module
 
     public function install($delete_params = true)
     {
-        if (!parent::install() ||
-            !$this->registerHook('actionCustomerGridQueryBuilderModifier') ||
-            !$this->registerHook('actionValidateOrder'))
-            return false;
-
-
-        
             Configuration::updateValue('MA_MERCHANT_ORDER', 1);
             Configuration::updateValue('MA_MERCHANT_MAILS', Configuration::get('PS_SHOP_EMAIL'));
             Configuration::updateValue('ma_generalCEOptions', 1);
@@ -104,6 +97,10 @@ class PersonalSalesMen extends Module
 
             if (!Db::getInstance()->execute($sql2))
                 return false;
+
+            return parent::install() &&
+                $this->registerHook('actionCustomerGridQueryBuilderModifier') &&
+                $this->registerHook('actionValidateOrder');
 
     
         
@@ -448,7 +445,7 @@ class PersonalSalesMen extends Module
             foreach($empl_array as $empl_id)
             {
                 $personal_emp_mail = Db::getInstance()->getValue('SELECT `email` FROM `'._DB_PREFIX_.'employee` WHERE `id_employee` = '.(int)$empl_id.' ');
-                array_push($merchant_mailsb, explode(self::__MA_MAIL_DELIMITOR__, $personal_emp_mail));
+                array_push($merchant_mailsb, explode(self::__MA_MAIL_DELIMITOR__, $personal_emp_mail)[0]);
             }
         }
 
@@ -605,7 +602,7 @@ class PersonalSalesMen extends Module
                         'label' => $this->l('Select Group'),
                         'name' => 'MA_GRP_SELECTION',
                         'options' => array(
-                            'query' => Group::getGroups(true),
+                            'query' => Group::getGroups(Context::getContext()->language->id, true),
                             'id' => 'id_group',
                             'name'=>'name',
                             'default' => array(
