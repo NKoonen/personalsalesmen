@@ -452,6 +452,7 @@ class PersonalSalesMen extends Module
 
         $merchant_mailsa = explode(self::__MA_MAIL_DELIMITOR__, $this->merchant_mails);
         $merchant_mails = array_merge($merchant_mailsa, $merchant_mailsb);
+        $merchant_mails = array_filter($merchant_mails);
 
         // Send 1 email by merchant mail, because Mail::Send doesn't work with an array of recipients
         foreach ($merchant_mails as $merchant_mail)
