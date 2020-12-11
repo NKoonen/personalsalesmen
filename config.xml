@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+	<name>personalsalesmen</name>
+	<displayName><![CDATA[Personal Salesmen]]></displayName>
+	<version><![CDATA[4.0.0]]></version>
+	<description><![CDATA[Link customers to employees. And have employees responsible for their orders.]]></description>
+	<author><![CDATA[Inform-all]]></author>
+	<tab><![CDATA[administration]]></tab>
+	<is_configurable>1</is_configurable>
+	<need_instance>1</need_instance>
+</module>
