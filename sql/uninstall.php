@@ -31,8 +31,8 @@
  */
 $sql = array();
 
-$sql[] = 'DROP TABLE IF EXISTS ' . _DB_PREFIX_ .' personalsalesmen';
-$sql[] = 'DROP TABLE IF EXISTS ' . _DB_PREFIX_ .' personalsalesmen_Groups';
+$sql[] = 'DROP TABLE IF EXISTS ' . _DB_PREFIX_ .'personalsalesmen';
+$sql[] = 'DROP TABLE IF EXISTS ' . _DB_PREFIX_ .'personalsalesmen_Groups';
 
 foreach ($sql as $query) {
     if (Db::getInstance()->execute($query) == false) {
