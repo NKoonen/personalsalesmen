@@ -15,14 +15,13 @@ class Personalsalesmen extends Module
         $this->author = 'Inform-all';
         $this->need_instance = 1;
         $this->bootstrap = true;
+        $this->module_key = 'adc8f5cfac749f8b03c631861e9dc996';
 
         parent::__construct();
 
         $this->displayName = $this->l('Personal Salesmen');
         $this->description = $this->l('Link customers to employees. And have employees responsible for their orders.');
-
         $this->confirmUninstall = $this->l('Are you sure you want to uninstall, and remove all the current links?');
-
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
     }
 
