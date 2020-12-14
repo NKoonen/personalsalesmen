@@ -1,29 +1,4 @@
 <?php
-/**
-* 2007-2020 PrestaShop
-*
-* NOTICE OF LICENSE
-*
-* This source file is subject to the Academic Free License (AFL 3.0)
-* that is bundled with this package in the file LICENSE.txt.
-* It is also available through the world-wide-web at this URL:
-* http://opensource.org/licenses/afl-3.0.php
-* If you did not receive a copy of the license and are unable to
-* obtain it through the world-wide-web, please send an email
-* to license@prestashop.com so we can send you a copy immediately.
-*
-* DISCLAIMER
-*
-* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
-* versions in the future. If you wish to customize PrestaShop for your
-* needs please refer to http://www.prestashop.com for more information.
-*
-*  @author    PrestaShop SA <contact@prestashop.com>
-*  @copyright 2007-2020 PrestaShop SA
-*  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
-*  International Registered Trademark & Property of PrestaShop SA
-*/
-
 if (!defined('_PS_VERSION_')) {
     exit;
 }
@@ -39,12 +14,7 @@ class Personalsalesmen extends Module
         $this->version = '4.0.0';
         $this->author = 'Inform-all';
         $this->need_instance = 1;
-
-        /**
-         * Set $this->bootstrap to true if your module is compliant with bootstrap (PrestaShop 1.6)
-         */
         $this->bootstrap = true;
-
 
         parent::__construct();
 
@@ -56,22 +26,20 @@ class Personalsalesmen extends Module
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
     }
 
-    /**
-     * Don't forget to create update methods if needed:
-     * http://doc.prestashop.com/display/PS16/Enabling+the+Auto-Update
-     */
     public function install()
     {
+        $this->registerHook('actionAdminControllerSetMedia');
         Configuration::updateValue('MA_MERCHANT_ORDER', 1);
         Configuration::updateValue('ma_generalCEOptions', 0);
         Configuration::updateValue('SendMailOption', 1);
 
-        include(dirname(__FILE__).'/sql/install.php');
+        include(dirname(__FILE__) . '/sql/install.php');
 
         return parent::install() &&
             $this->registerHook('actionCustomerGridQueryBuilderModifier') &&
             $this->registerHook('actionOrderGridQueryBuilderModifier') &&
             $this->registerHook('actionAddressGridQueryBuilderModifier') &&
+            $this->registerHook('actionAdminControllerSetMedia') &&
             $this->registerHook('actionValidateOrder');
     }
 
@@ -81,9 +49,85 @@ class Personalsalesmen extends Module
         Configuration::deleteByName('ma_generalCEOptions');
         Configuration::deleteByName('SendMailOption');
 
-        include(dirname(__FILE__).'/sql/uninstall.php');
+        include(dirname(__FILE__) . '/sql/uninstall.php');
 
         return parent::uninstall();
+    }
+
+    /**
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     */
+    public function hookActionAdminControllerSetMedia()
+    {
+        $controller = Dispatcher::getInstance()->getController();
+
+        if ($controller === 'AdminOrders' && $this->context->employee->id_profile != 1 && Configuration::get('ma_generalCEOptions') != 1) {
+            $id_order = (int)Tools::getValue('id_order');
+            if ($id_order != NULL) {
+                $order = new Order($id_order);
+                if ($this->EmpIsAllowsToSee($order->id_customer)) {
+                    Tools::redirectAdmin($this->context->link->getAdminLink('AdminOrders'));
+                }
+            }
+        }
+
+        if ($controller === 'AdminCustomers' && $this->context->employee->id_profile != 1 && Configuration::get('ma_generalCEOptions') != 1) {
+
+            $id_customer = (int)Tools::getValue('id_customer');
+            if ($id_customer != NULL) {
+                if ($this->EmpIsAllowsToSee($id_customer)) {
+                    Tools::redirectAdmin($this->context->link->getAdminLink('AdminCustomers'));
+                }
+            }
+        }
+
+        if ($controller === 'AdminAddresses' && $this->context->employee->id_profile != 1 && Configuration::get('ma_generalCEOptions') != 1) {
+            $id_address = (int)Tools::getValue('id_address');
+            if ($id_address != NULL) {
+                $address = new Address($id_address);
+                if ($this->EmpIsAllowsToSee($address->id_customer)) {
+                    Tools::redirectAdmin($this->context->link->getAdminLink('AdminAddresses'));
+                }
+            }
+        }
+
+    }
+
+    public function EmpIsAllowsToSee($customer_id)
+    {
+        if ($this->CheckEmpCustomerLink($customer_id) == NULL && $this->CheckEmpGroupLink($customer_id) == NULL)
+            return TRUE;
+        else
+            return FALSE;
+    }
+
+    public function CheckEmpCustomerLink($customer_id)
+    {
+        $sql = new DbQuery();
+        $sql->select('*');
+        $sql->from('personalsalesmen', 'psm');
+        $sql->where('psm.id_employee = ' . (int)$this->context->employee->id);
+        $sql->where('psm.id_customer = ' . (int)$customer_id);
+        return Db::getInstance()->executeS($sql);
+    }
+
+    public function CheckEmpGroupLink($customer_id)
+    {
+        $customer = new Customer($customer_id);
+
+        $sql = new DbQuery();
+        $sql->select('psmg.id_group');
+        $sql->from('personalsalesmen_Groups', 'psmg');
+        $sql->where('psmg.id_employee = ' . (int)$this->context->employee->id);
+        $group_ids = Db::getInstance()->executeS($sql);
+
+        $group_ids2 = array();
+        foreach ($group_ids as $grp_id) {
+            $group_ids2[] = intval($grp_id['id_group']);
+        }
+
+        return array_intersect($group_ids2, $customer->getGroups());
     }
 
     /**
@@ -92,7 +136,6 @@ class Personalsalesmen extends Module
     public function hookActionOrderGridQueryBuilderModifier(array $params)
     {
         if ($this->context->employee->id_profile != 1 && Configuration::get('ma_generalCEOptions') != 1) {
-            var_dump("Filter active");
             /** @var CustomerFilters $searchCriteria */
             $searchCriteria = $params['search_criteria'];
 
@@ -120,9 +163,7 @@ class Personalsalesmen extends Module
      */
     public function hookActionAddressGridQueryBuilderModifier(array $params)
     {
-        var_dump("AddressHooked");
         if ($this->context->employee->id_profile != 1 && Configuration::get('ma_generalCEOptions') != 1) {
-            var_dump("Filter active");
             /** @var CustomerFilters $searchCriteria */
             $searchCriteria = $params['search_criteria'];
 
@@ -192,20 +233,22 @@ class Personalsalesmen extends Module
         } else {
             $all_employees = $empl_ids;
         }
-
         foreach ($all_employees as $empl_array) {
             foreach ($empl_array as $empl_id) {
-                $emp = new Employee((int) $empl_id);
+                $emp = new Employee((int)$empl_id);
                 Mail::Send(
                     (int)(Configuration::get('PS_LANG_DEFAULT')), // defaut language id
-                    'contact', // email template file to be use
+                    'reply_msg', // email template file to be use
                     ' New Order', // email subject
                     array(
                         '{email}' => Configuration::get('PS_SHOP_EMAIL'), // sender email address
-                        '{message}' => 'A order has been placed' // email content
+                        '{firstname}' => $emp->firstname,
+                        '{lastname}' => $emp->lastname,
+                        '{link}' => Context::getContext()->link->getPageLink('index'),
+                        '{reply}' => 'A order has been placed, please login to the backoffice view the order.'
                     ),
-                    $emp->email(), // receiver email address
-                    $emp->lastname(), //receiver name
+                    $emp->email, // receiver email address
+                    $emp->lastname, //receiver name
                     Configuration::get('PS_SHOP_EMAIL'), //from email address
                     NULL  //from name
                 );
@@ -218,9 +261,6 @@ class Personalsalesmen extends Module
      */
     public function getContent()
     {
-        /**
-         * If values have been submitted in the form, process.
-         */
         if (((bool)Tools::isSubmit('submitPersonalsalesmenModule')) == true) {
             $this->postProcess();
         }
@@ -234,21 +274,22 @@ class Personalsalesmen extends Module
         $this->context->smarty->assign('grp_links', $grp_links);
 
         $baselink = $this->context->link->getAdminLink('AdminModules', true)
-            .'&configure='.$this->name.'&tab_module='.$this->tab.'&module_name='.$this->name.'&submitPersonalsalesmenModule=1';
+            . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name . '&submitPersonalsalesmenModule=1';
 
-        $this->context->smarty->assign('removeGrouplink', $baselink."&removeGrouplink=");
-        $this->context->smarty->assign('removeCstmrlink', $baselink."&removeCstmrlink=");
+        $this->context->smarty->assign('removeGrouplink', $baselink . "&removeGrouplink=");
+        $this->context->smarty->assign('removeCstmrlink', $baselink . "&removeCstmrlink=");
 
 
-        $output = $this->context->smarty->fetch($this->local_path.'views/templates/admin/configure.tpl');
+        $output = $this->context->smarty->fetch($this->local_path . 'views/templates/admin/configure.tpl');
 
-        return $output.$this->renderForm();
+        return $output . $this->renderForm();
     }
 
     /**
      * Create the form that will be displayed in the configuration of your module.
      */
-    protected function renderForm()
+    protected
+    function renderForm()
     {
         $helper = new HelperForm();
 
@@ -261,7 +302,7 @@ class Personalsalesmen extends Module
         $helper->identifier = $this->identifier;
         $helper->submit_action = 'submitPersonalsalesmenModule';
         $helper->currentIndex = $this->context->link->getAdminLink('AdminModules', false)
-            .'&configure='.$this->name.'&tab_module='.$this->tab.'&module_name='.$this->name;
+            . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name;
         $helper->token = Tools::getAdminTokenLite('AdminModules');
 
         $helper->tpl_vars = array(
@@ -276,9 +317,10 @@ class Personalsalesmen extends Module
     /**
      * Create the structure of your form.
      */
-    protected function getConfigForm()
+    protected
+    function getConfigForm()
     {
-        $options_form =  array(
+        $options_form = array(
             'form' => array(
                 'legend' => array(
                     'title' => $this->l('General options'),
@@ -429,7 +471,8 @@ class Personalsalesmen extends Module
     /**
      * Set values for the inputs.
      */
-    protected function getConfigFormValues()
+    protected
+    function getConfigFormValues()
     {
         return array(
             'ma_generalCEOptions' => Tools::getValue('ma_generalCEOptions', Configuration::get('ma_generalCEOptions')),
@@ -445,7 +488,8 @@ class Personalsalesmen extends Module
     /**
      * Save form data.
      */
-    protected function postProcess()
+    protected
+    function postProcess()
     {
         $form_values = $this->getConfigFormValues();
 
